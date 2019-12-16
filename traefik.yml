@@ -12,57 +12,61 @@
 
     # BASIC TASKS ######################################################
     - name: 'Including cron job'
-      include_tasks: '/pg/traefik/provider.yml'
+      include_tasks: '/opt/traefik/provider.yml'
 
     - name: Register E-Mail
-      shell: "cat /pg/var/server.email"
+      shell: "cat /var/plexguide/server.email"
       register: email
 
     - name: Register Delay Check
-      shell: "cat /pg/var/server.delaycheck"
+      shell: "cat /var/plexguide/server.delaycheck"
       register: delaycheck
 
     - name: Register Domain
-      shell: "cat /pg/var/server.domain"
+      shell: "cat /var/plexguide/server.domain"
       register: domain
 
     - name: Register Provider
-      shell: "cat /pg/var/traefik.provider"
+      shell: "cat /var/plexguide/traefik.provider"
       register: provider
 
     - name: Remove Traefik
       docker_container:
         name: traefik
         state: absent
+        
+    - name: Add google config file as volume
+      shell: "cat /var/plexguide/traefik/gcloud/GOOGLE_APPLICATION_CREDENTIALS"
+      register: gappconfig
 
     - name: Removing Prior Traefik.toml
       file:
         state: absent
-        path: /pg/data/traefik/traefik.toml
+        path: /opt/appdata/traefik/traefik.toml
 
     - name: Create Basic Directories
       file: "path={{item}} state=directory mode=0775 owner=1000 group=1000"
       with_items:
-        - /pg/data/traefik
-        - /pg/data/traefik/acme
+        - /opt/appdata/traefik
+        - /opt/appdata/traefik/acme
 
     - name: Installing Traefik.Toml
       template:
-        src: traefik.toml
-        dest: /pg/data/traefik/traefik.toml
+        src: traefik.yml
+        dest: /opt/appdata/traefik/traefik.yml
         force: yes
         owner: '1000'
         group: '1000'
 
     - name: Check acme.json exists
       stat:
-        path: "/pg/data/traefik/acme/acme.json"
+        path: "/opt/appdata/traefik/acme/acme.json"
       register: acme_json
 
     - name: Installing ACME
       template:
         src: acme.json
-        dest: /pg/data/traefik/acme/acme.json
+        dest: /opt/appdata/traefik/acme/acme.json
         force: yes
         mode: 0600
         owner: '1000'
@@ -81,8 +85,9 @@
         volumes:
           - /var/run/docker.sock:/var/run/docker.sock:ro
           - /etc/localtime:/etc/localtime:ro
-          - /pg/data/traefik/traefik.toml:/etc/traefik/traefik.toml:ro
-          - /pg/data/traefik/acme:/etc/traefik/acme
+          - /opt/appdata/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+          - /opt/appdata/traefik/acme:/etc/traefik/acme
+          - "{{gappconfig.stdout}}:{{gappconfig.stdout}}"
         restart_policy: unless-stopped
         state: started
         networks:
